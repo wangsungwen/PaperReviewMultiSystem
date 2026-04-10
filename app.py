@@ -179,6 +179,27 @@ with st.sidebar:
         st.success(f"已切換至 {llm_modes[selected_mode]}")
         st.rerun()
 
+    if st.session_state.config.get("llm_mode", "mock") == "ollama":
+        import requests
+        try:
+            requests.get("http://localhost:11434/api/tags", timeout=1)
+        except requests.exceptions.RequestException:
+            st.error("⚠️ 偵測不到 Ollama 服務正在執行。")
+            st.markdown("請確保您已安裝並啟動 Ollama。若尚未安裝：")
+            st.markdown("1. 前往 [Ollama 官網](https://ollama.com/) 下載。")
+            st.markdown("2. 或點擊下方按鈕自動下載並啟動安裝程式。")
+            if st.button("🚀 自動下載並啟動 Ollama 安裝"):
+                with st.spinner("正在啟動下載... (請留意背景彈出的安裝視窗)"):
+                    import subprocess
+                    try:
+                        # 將安裝檔下載到 Temp 資料夾並執行
+                        cmd = "Invoke-WebRequest -Uri https://ollama.com/download/OllamaSetup.exe -OutFile $env:TEMP\\OllamaSetup.exe; Start-Process -FilePath $env:TEMP\\OllamaSetup.exe"
+                        flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                        subprocess.Popen(["powershell", "-Command", cmd], creationflags=flags)
+                        st.success("已啟動安裝程式，請依畫面指示完成安裝。完成後請**重新啟動本系統**。")
+                    except Exception as e:
+                        st.error(f"啟動自動安裝失敗：{e}")
+
     st.divider()
     if st.button("🔍 檢測推論硬體狀態"):
         with st.status("正在檢測硬體資源...", expanded=True) as status:

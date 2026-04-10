@@ -16,9 +16,9 @@
 - **Hugging Face 精準推論**：整合 `desklib/ai-text-detector-v1.01`。
 - **Blackwell 硬體相容性**：內建 UI 切換開關，一鍵開啟 `force_cpu` 模式解決 50 系顯卡 CUDA 錯誤。
 
-### 3. 🤖 本地 LLM 多引擎驅动
+### 3. 🤖 本地 LLM 多引擎驅動
 
-- **🐑 Ollama API (強烈推薦)**：提供極佳的連線穩定性。
+- **🐑 Ollama API (強烈推薦)**：提供極佳的連線穩定性。**[新功能]** 內建 Ollama 服務自動偵測機制；若尚未安裝，只需在設定介面一鍵點擊，系統即可在背景自動下載並安裝 Ollama，體驗開箱即用。
 - **💻 Llama-cpp (GGUF)**：支援伺服器端管理員統一配置 GGUF 模型路徑與上下文窗口。
 
 ### 4. 📄 跨格式讀取與持久化報告
@@ -53,13 +53,14 @@ streamlit run app.py
 
 ### 3. 打包與發佈 (EXE 版)
 
-如果您希望將此系統作為可攜式軟體分發：
+如果您希望將此系統作為無須安裝環境的可攜式軟體分發：
 
 ```powershell
 python build_exe.py
 ```
 
-執行完後，結果將輸出於 `dist/PaperReviewSystem/`。
+執行完後，結果將輸出於 `dist/PaperReviewSystem/` 內。
+**注意**：為避免執行檔體積過大，`local_models` 模型資料夾與裡面的 `.gguf` 並未被打包。請務必在發布前，手動將 `local_models` 資料夾複製並放置於 `PaperReviewSystem.exe` 同一層級！
 
 ---
 
