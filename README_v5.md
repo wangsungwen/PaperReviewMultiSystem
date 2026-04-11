@@ -60,6 +60,8 @@ streamlit run app.py
 chmod +x setup_linux.sh run_linux.sh
 sudo apt-get install zstd
 curl -fsSL https://ollama.com/install.sh | sh
+ollama run llama3.1
+
 
 # 執行自動建置 (將安裝系統級 Python 工具與 .venv 並下載 requirements)
 ./setup_linux.sh
