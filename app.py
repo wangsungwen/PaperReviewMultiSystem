@@ -195,7 +195,7 @@ with st.sidebar:
                         import subprocess
                         import sys
                         
-                        setup_path = os.path.join(os.environ.get('TEMP', 'C:\\Temp'), 'OllamaSetup.exe')
+                        setup_path = os.path.abspath("OllamaSetup.exe")
                         url = "https://ollama.com/download/OllamaSetup.exe"
                         
                         print(f"\n[Ollama 輔助程式] 開始從 {url} 下載...", flush=True)
