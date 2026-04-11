@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  paper-review-app:
+    build: .
+    container_name: paper-review-system
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount the models directory to persist downloaded gguf files locally
+      - ./local_models:/app/local_models
+      # Mount the config file to allow easy local edits
+      - ./config.json:/app/config.json
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Uncomment the following lines to enable NVIDIA GPU access in the container
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    restart: unless-stopped

@@ -189,16 +189,37 @@ with st.sidebar:
             st.markdown("1. 前往 [Ollama 官網](https://ollama.com/) 下載。")
             st.markdown("2. 或點擊下方按鈕自動下載並啟動安裝程式。")
             if st.button("🚀 自動下載並啟動 Ollama 安裝"):
-                with st.spinner("正在啟動下載... (請留意背景彈出的安裝視窗)"):
-                    import subprocess
+                with st.spinner("正在下載 Ollama 安裝檔，檔案較大請耐心稍候... (下載完成後將自動啟動安裝)"):
                     try:
-                        # 將安裝檔下載到 Temp 資料夾並執行
-                        cmd = "Invoke-WebRequest -Uri https://ollama.com/download/OllamaSetup.exe -OutFile $env:TEMP\\OllamaSetup.exe; Start-Process -FilePath $env:TEMP\\OllamaSetup.exe"
-                        flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-                        subprocess.Popen(["powershell", "-Command", cmd], creationflags=flags)
-                        st.success("已啟動安裝程式，請依畫面指示完成安裝。完成後請**重新啟動本系統**。")
+                        import urllib.request
+                        import subprocess
+                        import sys
+                        
+                        setup_path = os.path.join(os.environ.get('TEMP', 'C:\\Temp'), 'OllamaSetup.exe')
+                        url = "https://ollama.com/download/OllamaSetup.exe"
+                        
+                        print(f"\n[Ollama 輔助程式] 開始從 {url} 下載...", flush=True)
+                        
+                        def report_progress(block_num, block_size, total_size):
+                            if total_size > 0:
+                                percent = min(100, block_num * block_size * 100 / total_size)
+                                sys.stdout.write(f"\r[Ollama 輔助程式] 下載進度：{percent:.1f}%")
+                                sys.stdout.flush()
+                        
+                        urllib.request.urlretrieve(url, setup_path, reporthook=report_progress)
+                        print(f"\n[Ollama 輔助程式] 下載完成！儲存於 {setup_path}", flush=True)
+                        
+                        print("[Ollama 輔助程式] 準備啟動安裝程式...", flush=True)
+                        if os.name == 'nt':
+                            os.startfile(setup_path)
+                        else:
+                            subprocess.Popen([setup_path])
+                            
+                        st.success("✅ 下載完成！已為您彈出安裝程式視窗，請依畫面指示完成安裝。安裝完成後請**重新整理網頁**或**重啟系統**。")
+                        print("[Ollama 輔助程式] 安裝程式啟動指令已送出。\n", flush=True)
                     except Exception as e:
-                        st.error(f"啟動自動安裝失敗：{e}")
+                        st.error(f"自動下載或啟動失敗：{e}")
+                        print(f"\n[Ollama 輔助程式] 發生錯誤：{e}\n", flush=True)
 
     st.divider()
     if st.button("🔍 檢測推論硬體狀態"):
@@ -356,6 +377,13 @@ if app_mode == "⚙️ 參數設定":
         app_config["local"]["model_path"] = model_path_input
         app_config["local"]["n_ctx"] = st.number_input("上下文窗口 (n_ctx)", value=app_config["local"].get("n_ctx", 4096), step=1024)
         app_config["local"]["max_tokens"] = st.number_input("最大輸出 (max_tokens)", value=app_config["local"].get("max_tokens", 1024), step=256)
+        
+        # 增加 GPU 卸載開關避免 Blackwell 5090 直接閃退
+        app_config["local"]["use_gpu"] = st.checkbox(
+            "啟用 GPU 顯示卡加速 (若閃退請關閉)", 
+            value=app_config["local"].get("use_gpu", True),
+            help="取消勾選將以純 CPU 執行本地大模型，可解決部分顯卡不相容導致程式無預警閃退中斷的問題。"
+        )
 
     if st.button("💾 儲存並套用設定", type="primary"):
         save_config(app_config)
