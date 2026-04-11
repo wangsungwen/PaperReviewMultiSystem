@@ -7,11 +7,56 @@ import requests
 import time
 import sys
 
+import os
+
+# GPU 探測與 Llama 崩潰迴避機制 (針對 Blackwell)
+import os
+import sys
+import subprocess
+
+_has_blackwell = False
+try:
+    if os.name == 'nt':
+        # Native WMI check mapped via Powershell prevents CUDA runtime singleton initialization locking the device prematurely
+        _res = subprocess.run(
+            ['powershell', '-NoProfile', '-Command', 'Get-CimInstance -ClassName Win32_VideoController | Select-Object -ExpandProperty Name'], 
+            capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        if _res.returncode == 0:
+            _gpu_info = _res.stdout.strip().lower()
+            if "5090" in _gpu_info or "5080" in _gpu_info or "5070" in _gpu_info or "blackwell" in _gpu_info:
+                _has_blackwell = True
+    elif os.name == 'posix':
+        _res = subprocess.run(
+            ['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'], 
+            capture_output=True, text=True
+        )
+        if _res.returncode == 0:
+            _gpu_info = _res.stdout.strip().lower()
+            if "5090" in _gpu_info or "5080" in _gpu_info or "5070" in _gpu_info or "blackwell" in _gpu_info:
+                _has_blackwell = True
+except Exception:
+    pass
+
+# FIXME(User): 暫時關掉「防閃退 CPU 模式」，以測試替換官方編譯 DLL 後的 5090 效能
+_has_blackwell = True
+
+original_cuda_val = os.environ.get("CUDA_VISIBLE_DEVICES")
+if _has_blackwell:
+    # 提前在 Llama 模組載入前關閉 GPU
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    
 try:
     from llama_cpp import Llama
     HAS_LLAMA_CPP = True
 except ImportError:
     HAS_LLAMA_CPP = False
+finally:
+    if _has_blackwell:
+        if original_cuda_val is not None:
+            os.environ["CUDA_VISIBLE_DEVICES"] = original_cuda_val
+        else:
+            del os.environ["CUDA_VISIBLE_DEVICES"]
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -52,22 +97,47 @@ class LLMInterface:
                         return
 
                 if self.mode != "mock":
-                    n_ctx = self.config.get("local", {}).get("n_ctx", 4096)
-                    # 預設嘗試開啟 GPU 加速 (n_gpu_layers=-1 表示全卸載至 GPU)
+                    local_cfg = self.config.get("local", {})
+                    n_ctx = local_cfg.get("n_ctx", 4096)
+                    use_gpu = local_cfg.get("use_gpu", True)
+                    
+                    # Auto-detect Blackwell/50-series to avoid fatal crashes in llama-cpp
+                    if use_gpu and _has_blackwell:
+                        print("自動偵測到高階 Blackwell 架構顯卡，為避免編譯版不相容，強制卸載 GPU (改用純 CPU)")
+                        use_gpu = False
+                    
                     try:
-                        self.local_llm = Llama(
-                            model_path=model_path, 
-                            n_ctx=n_ctx, 
-                            n_gpu_layers=-1, # <--- 嘗試啟用 GPU
-                            verbose=False
-                        )
+                        if use_gpu:
+                            # 嘗試開啟 GPU 加速 (n_gpu_layers=-1 表示全卸載至 GPU)
+                            self.local_llm = Llama(
+                                model_path=model_path, 
+                                n_ctx=n_ctx, 
+                                n_gpu_layers=-1,
+                                verbose=False
+                            )
+                        else:
+                            # 使用純 CPU 模式，避免部分高階顯卡出現致命 CUDA Error 閃退
+                            # 若 Llama 模組編譯了 CUDA 後端，即便 n_gpu_layers=0 仍會觸發 init 導致崩潰，
+                            # 因此利用環境變數徹底隱蔽 GPU。
+                            original_cuda = os.environ.get("CUDA_VISIBLE_DEVICES")
+                            os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+                            
+                            try:
+                                self.local_llm = Llama(
+                                    model_path=model_path, 
+                                    n_ctx=n_ctx, 
+                                    n_gpu_layers=0,
+                                    verbose=False
+                                )
+                            finally:
+                                if original_cuda is not None:
+                                    os.environ["CUDA_VISIBLE_DEVICES"] = original_cuda
+                                else:
+                                    del os.environ["CUDA_VISIBLE_DEVICES"]
+                                    
                     except Exception as e:
-                        print(f"GPU 載入失敗，嘗試回退至 CPU：{e}")
-                        try:
-                            self.local_llm = Llama(model_path=model_path, n_ctx=n_ctx, verbose=False)
-                        except Exception as e2:
-                            print(f"載入模型失敗：{e2}")
-                            self.mode = "mock"
+                        print(f"模型載入失敗：{e}")
+                        self.mode = "mock"
 
     def _load_config(self, path: str) -> dict:
         try:
