@@ -58,6 +58,8 @@ streamlit run app.py
 ```bash
 # 賦予執行權限
 chmod +x setup_linux.sh run_linux.sh
+sudo apt-get install zstd
+curl -fsSL https://ollama.com/install.sh | sh
 
 # 執行自動建置 (將安裝系統級 Python 工具與 .venv 並下載 requirements)
 ./setup_linux.sh
