@@ -34,21 +34,47 @@
 
 管理員可透過專案目錄下的 `config.json` 預設伺服器端的本地模型路徑。使用者無權修改物理檔案路徑，確保伺服器穩定。
 
-### 2. 快速啟動 (Server Mode)
+### 2. 跨平台快速啟動與部署
+
+#### 【選項 A】Windows 環境部署 (原生)
 
 ```powershell
 # 1. 建立並啟動環境
 python -m venv .venv
 .\.venv\Scripts\activate
 
-# 2. 安裝 CUDA 版 Torch
+# 2. 安裝 CUDA 版 Torch 與其他套件
 pip install torch --extra-index-url https://download.pytorch.org/whl/cu124
-
-# 3. 安裝其餘套件
 pip install -r requirements.txt
 
-# 4. 執行伺服器
+# 3. 執行伺服器
 streamlit run app.py
+```
+
+#### 【選項 B】Linux (Ubuntu) 原生一鍵部署 **[新]**
+
+只需透過內建的腳本即可自動建立環境並啟動：
+
+```bash
+# 賦予執行權限
+chmod +x setup_linux.sh run_linux.sh
+
+# 執行自動建置 (將安裝系統級 Python 工具與 .venv 並下載 requirements)
+./setup_linux.sh
+
+# 啟動伺服器
+./run_linux.sh
+```
+
+#### 【選項 C】Docker 容器化無痛部署 (推薦) **[新]**
+
+如果您希望完全隔絕環境污染，可以直接使用 Docker 化架構一鍵升空：
+
+```bash
+# 背景部署容器 (包含自動透通掛載 config 與 local_models)
+docker compose up -d
+
+# 若要在 Docker 內啟用 NVIDIA GPU 加速，請先取消 docker-compose.yml 內 deploy 區塊的註解。
 ```
 
 ### 3. 打包與發佈 (EXE 版)
