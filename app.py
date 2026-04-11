@@ -195,27 +195,35 @@ with st.sidebar:
                         import subprocess
                         import sys
                         
-                        setup_path = os.path.abspath("OllamaSetup.exe")
-                        url = "https://ollama.com/download/OllamaSetup.exe"
-                        
-                        print(f"\n[Ollama 輔助程式] 開始從 {url} 下載...", flush=True)
-                        
-                        def report_progress(block_num, block_size, total_size):
-                            if total_size > 0:
-                                percent = min(100, block_num * block_size * 100 / total_size)
-                                sys.stdout.write(f"\r[Ollama 輔助程式] 下載進度：{percent:.1f}%")
-                                sys.stdout.flush()
-                        
-                        urllib.request.urlretrieve(url, setup_path, reporthook=report_progress)
-                        print(f"\n[Ollama 輔助程式] 下載完成！儲存於 {setup_path}", flush=True)
-                        
-                        print("[Ollama 輔助程式] 準備啟動安裝程式...", flush=True)
-                        if os.name == 'nt':
-                            os.startfile(setup_path)
+                        if sys.platform != "win32":
+                            st.info("偵測為非 Windows 環境，正在執行官方自動安裝腳本... (可能需要 sudo 權限)")
+                            print("\n[Ollama 輔助程式] 開始執行 Linux/macOS 安裝腳本...", flush=True)
+                            res = subprocess.run("curl -fsSL https://ollama.com/install.sh | sh", shell=True, capture_output=True, text=True)
+                            if res.returncode == 0:
+                                st.success("Ollama 安裝完成！建議您透過終端機執行 `ollama serve` 來確保背景服務活著。")
+                                print("[Ollama 輔助程式] 安裝腳本執行成功！", flush=True)
+                            else:
+                                st.error(f"安裝腳本執行失敗，請手動在終端機執行: curl -fsSL https://ollama.com/install.sh | sh\n\n{res.stderr}")
                         else:
-                            subprocess.Popen([setup_path])
+                            import urllib.request
+                            setup_path = os.path.abspath("OllamaSetup.exe")
+                            url = "https://ollama.com/download/OllamaSetup.exe"
                             
-                        st.success("✅ 下載完成！已為您彈出安裝程式視窗，請依畫面指示完成安裝。安裝完成後請**重新整理網頁**或**重啟系統**。")
+                            print(f"\n[Ollama 輔助程式] 開始從 {url} 下載...", flush=True)
+                            
+                            def report_progress(block_num, block_size, total_size):
+                                if total_size > 0:
+                                    percent = min(100, block_num * block_size * 100 / total_size)
+                                    sys.stdout.write(f"\r[Ollama 輔助程式] 下載進度：{percent:.1f}%")
+                                    sys.stdout.flush()
+                            
+                            urllib.request.urlretrieve(url, setup_path, reporthook=report_progress)
+                            print(f"\n[Ollama 輔助程式] 下載完成！儲存於 {setup_path}", flush=True)
+                            print("[Ollama 輔助程式] 準備啟動安裝程式...", flush=True)
+                            
+                            # 顯示成功並執行
+                            st.success("下載完成！正在為您啟動安裝程式...請注意快顯視窗")
+                            subprocess.Popen([setup_path])
                         print("[Ollama 輔助程式] 安裝程式啟動指令已送出。\n", flush=True)
                     except Exception as e:
                         st.error(f"自動下載或啟動失敗：{e}")
