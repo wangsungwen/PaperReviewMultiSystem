@@ -39,7 +39,7 @@ except Exception:
     pass
 
 # FIXME(User): 暫時關掉「防閃退 CPU 模式」，以測試替換官方編譯 DLL 後的 5090 效能
-_has_blackwell = True
+_has_blackwell = False
 
 original_cuda_val = os.environ.get("CUDA_VISIBLE_DEVICES")
 if _has_blackwell:

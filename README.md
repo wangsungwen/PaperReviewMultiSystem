@@ -34,9 +34,9 @@
 
 管理員可透過專案目錄下的 `config.json` 預設伺服器端的本地模型路徑。使用者無權修改物理檔案路徑，確保伺服器穩定。
 
-### 2. 跨平台快速啟動與部署
+### 2. 跨平台部署與啟動
 
-#### 【選項 A】Windows 環境部署 (原生)
+#### 【環境 A】Windows 原生部署
 
 ```powershell
 # 1. 建立並啟動環境
@@ -51,27 +51,46 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-#### 【選項 B】Linux (Ubuntu) 原生一鍵部署 **[新]**
+#### 【環境 B】Ubuntu / Linux 部署全手冊 (RTX 5090 滿血支援)
 
-只需透過內建的腳本即可自動建立環境並啟動：
+針對搭載 RTX 5090 且需完全發揮 GPU 滿血算力的 Linux 環境，請依序執行以下環境建置與優化編譯流程：
 
 ```bash
-# 賦予執行權限
-chmod +x setup_linux.sh run_linux.sh
-sudo apt-get install zstd
+# 1. 系統資源與環境準備
+sudo apt update
+sudo apt install -y python3-venv python3-full nvidia-cuda-toolkit build-essential cmake zstd
+
+# 2. 建立並進入虛擬環境
+cd ~/PaperReviewMultiSystem
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 3. 強制配置 RTX 5090 (sm_89 向下相容) 高效能編譯參數
+export CUDACXX=/usr/bin/nvcc
+export CMAKE_ARGS="-DGGML_CUDA=on -DCMAKE_CUDA_ARCHITECTURES=89"
+export FORCE_CMAKE="1"
+
+# 4. 重新編譯 llama-cpp-python 並安裝系統依賴
+pip install --upgrade --force-reinstall llama-cpp-python --no-cache-dir
+pip install -r requirements.txt
+
+# 5. [選用] 安裝與下載 Ollama 引擎及模型
 curl -fsSL https://ollama.com/install.sh | sh
 ollama run llama3.1
 
-# 執行自動建置 (將安裝系統級 Python 工具與 .venv 並下載 requirements)
-./setup_linux.sh
+# 6. [選用] 本地化 GGUF 模型檔案下載 (Hugging Face)
+hf auth login
+mkdir -p local_models
+hf download nctu6/Gemma-3-TAIDE-12b-Chat-GGUF Gemma-3-TAIDE-12b-Chat-Q4_K_M.gguf --local-dir ./local_models
+hf download QuantFactory/Meta-Llama-3-8B-Instruct-GGUF Meta-Llama-3-8B-Instruct.Q4_K_M.gguf --local-dir ./local_models
 
-# 啟動伺服器
-./run_linux.sh
+# 7. 啟動伺服器
+streamlit run app.py
 ```
 
-#### 【選項 C】Docker 容器化無痛部署 (推薦) **[新]**
+#### 【環境 C】Docker 容器化無痛部署 (無干擾推薦)
 
-如果您希望完全隔絕環境污染，可以直接使用 Docker 化架構一鍵升空：
+如果您希望完全隔絕環境污染，可以直接使用 Docker 化架構一鍵啟動：
 
 ```bash
 # 背景部署容器 (包含自動透通掛載 config 與 local_models)
