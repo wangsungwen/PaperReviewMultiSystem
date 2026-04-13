@@ -44,6 +44,7 @@ python -m venv .venv
 .\.venv\Scripts\activate
 python -m pip install blinker streamlit
 python -m pip install pypdf python-docx
+python -m pip install transformers pandas scikit-learn aiohttp sentencepiece tokenizers safetensors altair watchdog
 
 # 2. 安裝 CUDA 版 Torch 與其他套件
 pip install torch --extra-index-url https://download.pytorch.org/whl/cu124
