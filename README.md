@@ -50,7 +50,11 @@ python -m pip install transformers pandas scikit-learn aiohttp sentencepiece tok
 pip install torch --extra-index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
 
-# 3. 執行伺服器
+# ˇ3. 下載Hugging Face 模型
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\download_model.ps1
+
+# 4. 執行伺服器
 streamlit run app.py
 ```
 
