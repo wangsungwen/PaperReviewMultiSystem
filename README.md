@@ -42,6 +42,8 @@
 # 1. 建立並啟動環境
 python -m venv .venv
 .\.venv\Scripts\activate
+python -m pip install blinker streamlit
+python -m pip install pypdf python-docx
 
 # 2. 安裝 CUDA 版 Torch 與其他套件
 pip install torch --extra-index-url https://download.pytorch.org/whl/cu124
