@@ -1,9 +1,9 @@
-cat << 'EOF' > install_and_run_5090_v2.sh
+cat << 'EOF' > install_and_run_5090_v3.sh
 #!/bin/bash
 set -e
 
 echo "==================================================="
-echo "🚀 開始自動建置 PaperReviewMultiSystem (RTX 5090 終極版)"
+echo "🚀 開始自動建置 PaperReviewMultiSystem (RTX 5090 無敵版)"
 echo "==================================================="
 
 echo -e "\n[1/6] 更新系統與安裝底層依賴套件..."
@@ -22,8 +22,13 @@ source .venv/bin/activate
 pip install -U pip setuptools wheel "huggingface_hub[cli]"
 
 echo -e "\n[4/6] 配置 RTX 5090 專屬環境 (載入 CUDA 12.6 核心)..."
-# 💡 核心修正：強制使用 NVIDIA 官方來源下載支援 5090 的 CUDA 12.6 版本
-echo "⏳ 正在下載 CUDA 12.6 版 PyTorch (檔案較大，請稍候)..."
+
+# 💡 終極修正：動態修改 requirements.txt，把寫死的 torch 拔除，防止 pip 崩潰
+echo "⏳ 正在解除 requirements.txt 的 PyTorch 封印..."
+cp requirements.txt requirements.txt.bak
+sed -i -E '/^(torch|torchvision|torchaudio)(==|>=|<=|$)/Id' requirements.txt
+
+echo "⏳ 正在下載 CUDA 12.6 版 PyTorch (支援 Blackwell 架構)..."
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 
 # 編譯 llama-cpp-python (相容性架構碼 89)
@@ -54,5 +59,5 @@ streamlit run app.py
 EOF
 
 # 賦予權限並執行
-chmod +x install_and_run_5090_v2.sh
-./install_and_run_5090_v2.sh
+chmod +x install_and_run_5090_v3.sh
+./install_and_run_5090_v3.sh
