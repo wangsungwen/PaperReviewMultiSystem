@@ -38,8 +38,8 @@ class DesklibAIDetectionModel(PreTrainedModel):
         outputs = self.model(input_ids, attention_mask=attention_mask)
         last_hidden_state = outputs[0]
         
-        # Mean pooling (平均池化)
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+        # Mean pooling (平均池化) - 修正精度不匹配問題
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).to(last_hidden_state.dtype)
         sum_embeddings = torch.sum(last_hidden_state * input_mask_expanded, dim=1)
         sum_mask = torch.clamp(input_mask_expanded.sum(dim=1), min=1e-9)
         pooled_output = sum_embeddings / sum_mask
