@@ -4,11 +4,15 @@ import re
 import json
 import requests
 import asyncio
+import warnings
 
 # --- 引入 Hugging Face 與 PyTorch 依賴 ---
 import torch
 import torch.nn as nn
 from transformers import AutoTokenizer, AutoConfig, AutoModel, PreTrainedModel
+
+# 抑制一些 transformers 無關緊要的警告
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # ==========================================
 # 定義 Desklib AI 偵測專用模型架構
@@ -82,15 +86,27 @@ class AIDetector:
         print("[System] 正在載入 Desklib AI 偵測神經網路模型...")
         model_directory = "desklib/ai-text-detector-v1.01"
         
-        # 檢查是否強制使用 CPU (針對 RTX 5090 等尚未支援 Stable CUDA 核心的硬體)
+        # --- 診斷與強制作為 ---
+        print(f"[System] PyTorch 版本: {torch.__version__}")
+        print(f"[System] PyTorch 是否編譯了 CUDA 支援: {torch.version.cuda}")
+        print(f"[System] 系統是否偵測到可用的 GPU: {torch.cuda.is_available()}")
+        
         force_cpu = self.config.get("ai_detector", {}).get("force_cpu", False)
+        
         if force_cpu:
+            print("[System] 使用者於設定中勾選了強制使用 CPU。")
             self.device = torch.device("cpu")
+        elif torch.cuda.is_available():
+            self.device = torch.device("cuda:0") # 明確指定第一張顯卡
+            # 清除 GPU 快取，確保載入模型時有乾淨的空間
+            torch.cuda.empty_cache()
         else:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            print("[System] 警告：無法偵測到可用的 GPU，將退回使用 CPU。請檢查 PyTorch 安裝版本。")
+            self.device = torch.device("cpu")
             
         self.tokenizer = AutoTokenizer.from_pretrained(model_directory)
-        self.hf_model = DesklibAIDetectionModel.from_pretrained(model_directory).to(self.device)
+        # 加上 torch_dtype 參數，確保在 GPU 上使用更節省記憶體的精度
+        self.hf_model = DesklibAIDetectionModel.from_pretrained(model_directory, torch_dtype=torch.float16 if self.device.type == "cuda" else torch.float32).to(self.device)
         self.hf_model.eval() # 設置為評估模式
         print(f"[System] 模型載入完成！使用運算裝置: {self.device}")
 
@@ -227,7 +243,6 @@ class AIDetector:
                     return data
                 except json.JSONDecodeError:
                     return self._mock_analyze(text, "模型輸出了不合法的 JSON。")
-            return self._mock_analyze(text, f"模型解析失敗：無法找到有效 JSON 資料。模型回傳為：{response_text[:50]}...")
             return self._mock_analyze(text, f"模型解析失敗：無法找到有效 JSON 資料。模型回傳為：{response_text[:50]}...")
         except Exception as e:
             return self._mock_analyze(text, f"本地偵測異常：{str(e)}")
