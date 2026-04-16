@@ -1,9 +1,9 @@
-cat << 'EOF' > run_5090.sh
+cat << 'EOF' > run_5090_stable.sh
 #!/bin/bash
 set -e
 
 echo "==================================================="
-echo "🚀 開始自動建置 PaperReviewMultiSystem (路徑修正版)"
+echo "🚀 開始自動建置 PaperReviewMultiSystem (穩定相容版)"
 echo "==================================================="
 
 echo -e "\n[1/6] 更新系統與安裝底層依賴套件..."
@@ -11,12 +11,11 @@ sudo apt update
 sudo apt install -y git python3-venv python3-full nvidia-cuda-toolkit build-essential cmake
 
 echo -e "\n[2/6] 下載專案程式碼..."
-cd ~  # 確保從家目錄開始
+cd ~
 if [ ! -d "PaperReviewMultiSystem" ]; then
     git clone https://github.com/wangsungwen/PaperReviewMultiSystem.git
 fi
 
-# 💡 最關鍵的一步：進入專案資料夾！後面的動作全部在這裡進行
 cd PaperReviewMultiSystem
 echo "目前工作目錄: $(pwd)"
 
@@ -26,13 +25,14 @@ source .venv/bin/activate
 pip install -U pip setuptools wheel "huggingface_hub[cli]"
 
 echo -e "\n[4/6] 配置 RTX 5090 專屬環境..."
-# 動態修改 requirements.txt
+# 解除 requirements.txt 的封印
 echo "⏳ 正在解除 requirements.txt 的 PyTorch 封印..."
 cp requirements.txt requirements.txt.bak
 sed -i -E '/^(torch|torchvision|torchaudio)(==|>=|<=|$)/Id' requirements.txt
 
-echo "⏳ 正在下載 CUDA 12.6 版 PyTorch..."
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+# 💡 核心修正：明確指定安裝穩定的 2.6.0 版本，避免下載到會當機的 2.11.0 開發版
+echo "⏳ 正在安裝與系統相容的 PyTorch 2.6.0 (CUDA 12.4)..."
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
 
 # 編譯 llama-cpp-python
 export CUDACXX=/usr/bin/nvcc
@@ -45,13 +45,13 @@ pip install --upgrade --force-reinstall llama-cpp-python --no-cache-dir
 echo "⏳ 正在安裝其餘專案套件..."
 pip install -r requirements.txt
 
-echo -e "\n[5/6] 模型下載..."
-echo "👉 這次我們先跳過輸入 Token，直接啟動伺服器以確認環境是否健康！"
+echo -e "\n[5/6] 系統就緒確認..."
+echo "👉 正在啟動伺服器..."
 
-echo -e "\n[6/6] 🎉 系統建置大功告成！正在為您啟動伺服器..."
+echo -e "\n[6/6] 🎉 系統建置大功告成！"
 echo "==================================================="
 streamlit run app.py
 EOF
 
-chmod +x run_5090.sh
-./run_5090.sh
+chmod +x run_5090_stable.sh
+./run_5090_stable.sh
