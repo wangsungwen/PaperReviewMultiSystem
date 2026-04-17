@@ -1,4 +1,4 @@
-# app.py (v6.1 線上使用者支援 Ollama + 管理員介面完美保留版)
+# app.py (v6.0 雙入口隔離 + 原汁原味管理員設定版)
 
 import streamlit as st
 import asyncio
@@ -114,7 +114,7 @@ def get_temp_user_config_path(user_conf):
 
 # ----------------- 設定檔管理 -----------------
 
-st.set_page_config(page_title="多代理人論文審查系統 v6.1", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="多代理人論文審查系統 v6.0", page_icon="🎓", layout="wide")
 
 config_name = "config.json"
 if os.path.exists(config_name):
@@ -215,35 +215,21 @@ with st.sidebar:
     # 線上使用者入口 (安全隔離區)
     # ==========================================
     if entry_mode == "🌐 線上使用者":
-        st.success("🔒 **安全隔離模式已啟動**\n您的設定僅存於記憶體中，關閉視窗即自動清除。")
-        st.subheader("🔑 推論引擎選擇")
+        st.success("🔒 **安全隔離模式已啟動**\n您的 API Key 僅存於記憶體中，關閉視窗即清除。")
+        st.subheader("🔑 個人金鑰設定")
         
-        # 新增 Ollama 供線上使用者選擇
-        user_provider = st.radio("雲端/本地引擎", ["Gemini (推薦)", "OpenAI 相容", "Ollama (本地高併發)"])
+        user_provider = st.radio("雲端引擎", ["Gemini (推薦)", "OpenAI 相容"])
+        user_key = st.text_input("輸入您的 API Key", type="password")
         
-        if user_provider == "Ollama (本地高併發)":
-            st.session_state.user_config["llm_mode"] = "ollama"
-            st.info("Ollama 模式將使用伺服器本地資源進行高效能併發推論，不需輸入 API Key。")
-            
-            # 檢查 Ollama 服務是否存活
-            ollama_base_url = st.session_state.user_config.get("ollama", {}).get("base_url", "http://localhost:11434")
-            try:
-                requests.get(f"{ollama_base_url}/api/tags", timeout=1)
-                st.success("✅ Ollama 伺服器連線正常，可開始推論！")
-            except requests.exceptions.RequestException:
-                st.error("⚠️ 伺服器端的 Ollama 服務似乎未啟動。")
-                st.markdown("請通知系統管理員登入並啟動 Ollama 服務。")
-                
+        # 線上使用者強制只能使用雲端引擎，保護伺服器 VRAM 不被耗盡
+        if user_provider == "Gemini (推薦)":
+            st.session_state.user_config["cloud"]["provider"] = "gemini"
+            st.session_state.user_config["gemini_native"]["api_key"] = user_key
+            st.session_state.user_config["llm_mode"] = "gemini_native"
         else:
-            user_key = st.text_input("輸入您的 API Key", type="password")
-            if user_provider == "Gemini (推薦)":
-                st.session_state.user_config["cloud"]["provider"] = "gemini"
-                st.session_state.user_config["gemini_native"]["api_key"] = user_key
-                st.session_state.user_config["llm_mode"] = "gemini_native"
-            else:
-                st.session_state.user_config["cloud"]["provider"] = "openai"
-                st.session_state.user_config["cloud"]["api_key"] = user_key
-                st.session_state.user_config["llm_mode"] = "cloud"
+            st.session_state.user_config["cloud"]["provider"] = "openai"
+            st.session_state.user_config["cloud"]["api_key"] = user_key
+            st.session_state.user_config["llm_mode"] = "cloud"
         
         active_config = st.session_state.user_config
         active_config_path = get_temp_user_config_path(active_config)
@@ -289,7 +275,7 @@ with st.sidebar:
                     st.rerun()
 
                 # ==========================================
-                # Ollama 守護程式與自動安裝邏輯 (僅管理員可用)
+                # Ollama 守護程式與自動安裝邏輯
                 # ==========================================
                 if active_config.get("llm_mode") == "ollama":
                     ollama_base_url = active_config.get("ollama", {}).get("base_url", "http://localhost:11434")
@@ -479,7 +465,7 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
 else:
     col_t1, col_t2 = st.columns([0.8, 0.2])
     with col_t1:
-        st.title("🎓 多代理人 AI 論文審查系統 v6.1")
+        st.title("🎓 多代理人 AI 論文審查系統 v6.0")
         
         # 資源監控與狀態列
         c1, c2 = st.columns([0.3, 0.7])
@@ -502,8 +488,7 @@ else:
                     else: 
                         llm_hw_status = "🛠️ Mock Engine"
                         
-                    # 修正格式：移除多行字串的不當縮排
-                    st.success(f"✔️ **檢測完成！**\n\n🔹 LLM 推論： {llm_hw_status}\n\n🔹 AI 偵測： {det.hardware_info}")
+                    st.success(f"✔️ **檢測完成！**\n\n🔹 **LLM 推論**： {llm_hw_status}\n\n🔹 **AI 偵測**： {det.hardware_info}")
 
     with col_t2:
         with st.popover("⚙️ 當前參數"):

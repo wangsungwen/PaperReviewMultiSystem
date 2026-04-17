@@ -17,13 +17,14 @@
     "ai_detector": {
         "api_key": "YOUR_GPTZERO_API_KEY_HERE",
         "api_url": "https://api.gptzero.me/v2/predict/text",
-        "mode": "Hugging Face 神經網路 (推薦)",
+        "mode": "本地落地模型 (Local LLM)",
         "force_cpu": false
     },
     "ollama": {
         "host": "http://localhost:11434",
         "model_name": "llama3.1",
-        "max_tokens": 4096
+        "max_tokens": 4096,
+        "base_url": "http://localhost:11434"
     },
     "gemini_native": {
         "api_key": "",
