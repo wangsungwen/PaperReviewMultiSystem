@@ -1,4 +1,4 @@
-# app.py (v6.1 線上使用者支援 Ollama + 管理員介面完美保留版)
+# app.py (v6.2 修正線上使用者 Gemini 連線)
 
 import streamlit as st
 import asyncio
@@ -114,7 +114,7 @@ def get_temp_user_config_path(user_conf):
 
 # ----------------- 設定檔管理 -----------------
 
-st.set_page_config(page_title="多代理人論文審查系統 v6.1", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="多代理人論文審查系統 v6.2", page_icon="🎓", layout="wide")
 
 config_name = "config.json"
 if os.path.exists(config_name):
@@ -218,7 +218,6 @@ with st.sidebar:
         st.success("🔒 **安全隔離模式已啟動**\n您的設定僅存於記憶體中，關閉視窗即自動清除。")
         st.subheader("🔑 推論引擎選擇")
         
-        # 新增 Ollama 供線上使用者選擇
         user_provider = st.radio("雲端/本地引擎", ["Gemini (推薦)", "OpenAI 相容", "Ollama (本地高併發)"])
         
         if user_provider == "Ollama (本地高併發)":
@@ -236,14 +235,15 @@ with st.sidebar:
                 
         else:
             user_key = st.text_input("輸入您的 API Key", type="password")
+            
+            # 【關鍵修復】：強制設定為 cloud 模式，底層 interface.py 才能正確辨識
+            st.session_state.user_config["llm_mode"] = "cloud"
+            st.session_state.user_config["cloud"]["api_key"] = user_key
+            
             if user_provider == "Gemini (推薦)":
                 st.session_state.user_config["cloud"]["provider"] = "gemini"
-                st.session_state.user_config["gemini_native"]["api_key"] = user_key
-                st.session_state.user_config["llm_mode"] = "gemini_native"
             else:
                 st.session_state.user_config["cloud"]["provider"] = "openai"
-                st.session_state.user_config["cloud"]["api_key"] = user_key
-                st.session_state.user_config["llm_mode"] = "cloud"
         
         active_config = st.session_state.user_config
         active_config_path = get_temp_user_config_path(active_config)
@@ -479,7 +479,7 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
 else:
     col_t1, col_t2 = st.columns([0.8, 0.2])
     with col_t1:
-        st.title("🎓 多代理人 AI 論文審查系統 v6.1")
+        st.title("🎓 多代理人 AI 論文審查系統 v6.2")
         
         # 資源監控與狀態列
         c1, c2 = st.columns([0.3, 0.7])
@@ -502,7 +502,6 @@ else:
                     else: 
                         llm_hw_status = "🛠️ Mock Engine"
                         
-                    # 修正格式：移除多行字串的不當縮排
                     st.success(f"✔️ **檢測完成！**\n\n🔹 LLM 推論： {llm_hw_status}\n\n🔹 AI 偵測： {det.hardware_info}")
 
     with col_t2:
