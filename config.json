@@ -1,25 +1,32 @@
 {
-    "llm_mode": "cloud",
+    "llm_mode": "local",
     "cloud": {
-        "provider": "openai",
+        "provider": "gemini",
         "api_key": "YOUR_API_KEY_HERE",
         "model_name": "gpt-4o",
-        "api_url": "https://api.openai.com/v1/chat/completions"
+        "api_url": "https://api.openai.com/v1/chat/completions",
+        "endpoint": "https://api.openai.com/v1"
     },
     "local": {
-        "model_path": "local_models/Gemma-3-TAIDE-12b-Chat-Q4_K_M.gguf",
-        "n_ctx": 16384,
-        "max_tokens": 8192
+        "model_path": "H:/Coding/paper_review_system_multi/local_models/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf",
+        "n_ctx": 37888,
+        "max_tokens": 12288,
+        "use_gpu": true,
+        "n_gpu_layers": -1
     },
     "ai_detector": {
         "api_key": "YOUR_GPTZERO_API_KEY_HERE",
         "api_url": "https://api.gptzero.me/v2/predict/text",
-        "mode": "hf_model",
-        "force_cpu": true
+        "mode": "Hugging Face 神經網路 (推薦)",
+        "force_cpu": false
     },
     "ollama": {
         "host": "http://localhost:11434",
         "model_name": "llama3.1",
         "max_tokens": 4096
+    },
+    "gemini_native": {
+        "api_key": "",
+        "model_name": "gemini-1.5-pro-latest"
     }
 }
