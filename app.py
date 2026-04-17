@@ -1,4 +1,4 @@
-# app.py (v6.6 終極滿血寬鬆排版版：100% 原汁原味介面 + 精準底層路由對接)
+# app.py (v6.7 UI完美還原 + AI偵測器加強版)
 
 import streamlit as st
 import asyncio
@@ -153,6 +153,10 @@ if not os.path.exists(config_path):
             "model_name": "gpt-4o", 
             "api_url": "https://api.openai.com/v1/chat/completions"
         },
+        "gemini_native": {
+            "api_key": "", 
+            "model_name": "gemini-1.5-flash"
+        },
         "local": {
             "model_path": "./local_models/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf", 
             "n_ctx": 4096, 
@@ -273,18 +277,19 @@ with st.sidebar:
             user_key = st.text_input("輸入您的 API Key", type="password", label_visibility="collapsed")
             
             if user_provider == "Gemini (推薦)":
-                # 精準指向 native 模式，消滅 404 問題
-                st.session_state.user_config["llm_mode"] = "gemini_native"
-                st.session_state.user_config.setdefault("gemini_native", {})
-                st.session_state.user_config["gemini_native"]["api_key"] = user_key
+                # 精準指向 cloud 模式，確保 interface.py 能夠辨識
+                st.session_state.user_config["llm_mode"] = "cloud"
+                st.session_state.user_config.setdefault("cloud", {})
+                st.session_state.user_config["cloud"]["api_key"] = user_key
+                st.session_state.user_config["cloud"]["provider"] = "gemini"
                 
                 st.caption("選擇 Gemini 模型")
                 user_model = st.selectbox(
                     "選擇 Gemini 模型", 
-                    ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp"],
+                    ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp", "gemini-2.5-flash"],
                     label_visibility="collapsed"
                 )
-                st.session_state.user_config["gemini_native"]["model_name"] = user_model
+                st.session_state.user_config["cloud"]["model_name"] = user_model
             else:
                 st.session_state.user_config["llm_mode"] = "cloud"
                 st.session_state.user_config.setdefault("cloud", {})
@@ -614,9 +619,7 @@ else:
                 llm_inf = LLMInterface(config_path=active_config_path)
                 
                 llm_mode = active_config.get("llm_mode", "mock")
-                if llm_mode == "gemini_native": 
-                    llm_hw_status = "☁️ Cloud API (Gemini Native)"
-                elif llm_mode == "cloud": 
+                if llm_mode == "cloud": 
                     provider = active_config.get("cloud", {}).get("provider", "openai")
                     llm_hw_status = "☁️ Cloud API (Gemini)" if provider == "gemini" else "☁️ Cloud API (OpenAI 相容)"
                 elif llm_mode == "ollama": 
@@ -669,7 +672,7 @@ else:
 
 
     # ==========================================
-    # 1.5 內容預處理與範圍界定
+    # 1.5 內容預處理與範圍界定 (完美還原三色儀表板)
     # ==========================================
     st.header("✂️ 1.5 內容預處理與清洗")
     
@@ -727,18 +730,32 @@ else:
                     filtered_text = filtered_text[:idx] 
 
     compared_words = len(filtered_text)
+    excluded_words = total_words - compared_words
 
     with col_set2:
-        # 原汁原味的美麗儀表板
+        # 完全還原三色儀表板排版 (image_82d788.png)
         st.markdown(f"""
-        <div style="padding:15px;">
-            <div style="font-size:16px;">📄 原始字數：{total_words:,}</div>
-            <div style="font-size:16px; margin-top:10px;">✅ <span style="color:#137333; font-weight:bold;">最終字數：{compared_words:,}</span></div>
+        <div style="border:1px solid #e0e0e0; border-radius:10px; padding:15px; text-align:center; margin-bottom:12px; background-color:#ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <div style="color:#5f6368; font-size:16px; font-weight:500;">📄 文件原始總字數</div>
+            <div style="font-size:32px; font-weight:800; color:#202124;">{total_words:,}</div>
+        </div>
+        <div style="border:1px solid #fad2cf; border-radius:10px; padding:15px; text-align:center; margin-bottom:12px; background-color:#fce8e6; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <div style="color:#d93025; font-size:16px; font-weight:500;">❌ 總計排除字數</div>
+            <div style="font-size:32px; font-weight:800; color:#d93025;">{excluded_words:,}</div>
+        </div>
+        <div style="border:1px solid #ceead6; border-radius:10px; padding:15px; text-align:center; background-color:#e6f4ea; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <div style="color:#137333; font-size:16px; font-weight:500;">✅ 最終比對/審查字數</div>
+            <div style="font-size:32px; font-weight:800; color:#137333;">{compared_words:,}</div>
         </div>
         """, unsafe_allow_html=True)
 
         if compared_words > 30000:
-            st.warning("⚠️ 警告：字數超過 30,000 字，可能報錯。")
+            st.warning("⚠️ 注意：最終比對字數超過 30,000 字，可能因超過 Token 限制而報錯，建議進一步精簡。")
+
+    st.markdown("##### 🔍 內容預覽 (分析前檢視您的文件)")
+    preview_limit = 1000
+    display_text = filtered_text[:preview_limit] + ("\n\n... (內容已截斷，僅顯示前 1000 字)" if len(filtered_text) > preview_limit else "")
+    st.info(display_text if display_text else "尚無內容。")
 
     final_paper_content_for_llm = filtered_text
 
@@ -764,7 +781,7 @@ else:
         else:
             llm_service = LLMInterface(config_path=active_config_path)
             detector = AIDetector(config_path=active_config_path)
-            with st.spinner("AI 偵測分析中..."):
+            with st.spinner("AI 偵測分析中 (初次運行可能需要較長下載時間)..."):
                  # 傳遞正在使用的 LLM 介面給偵測器
                  report = detector.analyze(final_paper_content_for_llm, llm_interface=llm_service)
                  st.session_state.ai_report = report
