@@ -1,4 +1,4 @@
-# app.py (v6.2 修正線上使用者 Gemini 連線)
+# app.py (v6.3 修正線上使用者 Gemini 模型 404 錯誤版)
 
 import streamlit as st
 import asyncio
@@ -236,14 +236,20 @@ with st.sidebar:
         else:
             user_key = st.text_input("輸入您的 API Key", type="password")
             
-            # 【關鍵修復】：強制設定為 cloud 模式，底層 interface.py 才能正確辨識
+            # 【關鍵修復】：新增線上使用者的模型選擇，避免將 gpt-4o 丟給 Gemini 導致 404
             st.session_state.user_config["llm_mode"] = "cloud"
             st.session_state.user_config["cloud"]["api_key"] = user_key
             
             if user_provider == "Gemini (推薦)":
                 st.session_state.user_config["cloud"]["provider"] = "gemini"
+                # 提供 Gemini 專屬模型選單
+                user_model = st.selectbox("選擇 Gemini 模型", ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp"])
+                st.session_state.user_config["cloud"]["model_name"] = user_model
             else:
                 st.session_state.user_config["cloud"]["provider"] = "openai"
+                # 提供 OpenAI 模型名稱輸入
+                user_model = st.text_input("輸入 OpenAI 模型名稱", value="gpt-4o")
+                st.session_state.user_config["cloud"]["model_name"] = user_model
         
         active_config = st.session_state.user_config
         active_config_path = get_temp_user_config_path(active_config)
@@ -502,6 +508,7 @@ else:
                     else: 
                         llm_hw_status = "🛠️ Mock Engine"
                         
+                    # 修正格式：移除多行字串的不當縮排
                     st.success(f"✔️ **檢測完成！**\n\n🔹 LLM 推論： {llm_hw_status}\n\n🔹 AI 偵測： {det.hardware_info}")
 
     with col_t2:
