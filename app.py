@@ -612,8 +612,13 @@ else:
             r3_results = await orchestrator.run_round_3()
             s3.update(label="✅ 第三輪：最終裁決完成", state="complete")
         
-        st.session_state.review_history = orchestrator.history
-        st.session_state.review_stats = orchestrator.review_stats
+        # 加入 getattr 安全取值，防止模型輸出無效 JSON 導致系統崩潰
+        st.session_state.review_history = getattr(orchestrator, "history", {})
+        st.session_state.review_stats = getattr(orchestrator, "review_stats", {
+            "avg_contribution": 0.0,
+            "avg_deficiencies": 0.0,
+            "avg_robustness": 0.0
+        })
         st.balloons()
         st.rerun()
 
