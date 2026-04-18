@@ -1,4 +1,4 @@
-# app.py
+# app.py (v6.8 AI 偵測模式精準綁定與狀態修復版)
 
 import streamlit as st
 import asyncio
@@ -198,7 +198,7 @@ def save_global_config(config):
 # 核心狀態初始化 (Session State) - 多租戶隔離關鍵
 # ===========================================================
 
-# 【修復快取未同步問題】如果使用者點擊了儲存，我們必須確保舊的快取被清除
+# 處理強制重載設定檔的邏輯 (確保 UI 切換立刻生效)
 if "force_reload_config" in st.session_state and st.session_state.force_reload_config:
     st.session_state.global_config_cache = load_global_config()
     st.session_state.user_config = copy.deepcopy(st.session_state.global_config_cache)
@@ -517,27 +517,31 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
         
         st.subheader("🔍 AI Detector 設定")
         
-        detector_modes = ["Hugging Face 神經網路 (推薦)", "GPTZero API (雲端)", "本地落地模型 (Local LLM)"]
+        # 【終極修復：精準字典綁定】徹底解決 radio button 卡死在 local 的問題
+        detector_options = {
+            "Hugging Face 神經網路 (推薦)": "hf_model",
+            "GPTZero API (雲端)": "cloud",
+            "本地落地模型 (Local LLM)": "local"
+        }
         
-        # 讀取時將內部代碼轉換為 UI 顯示 index
+        # 反向找出目前的 index
         current_det_mode = active_config["ai_detector"].get("mode", "hf_model")
-        if current_det_mode == "hf_model":
-            det_index = 0
-        elif current_det_mode == "cloud":
-            det_index = 1
-        else:
-            det_index = 2
+        det_index = 0
+        for i, (ui_text, sys_code) in enumerate(detector_options.items()):
+            if sys_code == current_det_mode:
+                det_index = i
+                break
         
         st.caption("偵測模式")
-        selected_det_mode = st.radio("偵測模式", detector_modes, index=det_index, label_visibility="collapsed")
+        selected_det_ui = st.radio(
+            "偵測模式", 
+            list(detector_options.keys()), 
+            index=det_index, 
+            label_visibility="collapsed"
+        )
         
-        # 【關鍵修復：儲存時必須將 UI 文字轉換回系統看得懂的內部代碼】
-        if "Hugging Face" in selected_det_mode:
-            active_config["ai_detector"]["mode"] = "hf_model"
-        elif "GPTZero" in selected_det_mode:
-            active_config["ai_detector"]["mode"] = "cloud"
-        else:
-            active_config["ai_detector"]["mode"] = "local"
+        # 將 UI 文字轉換回系統看得懂的內部代碼
+        active_config["ai_detector"]["mode"] = detector_options[selected_det_ui]
 
         # 依照選擇顯示對應的設定項目
         if active_config["ai_detector"]["mode"] == "hf_model":
@@ -621,7 +625,7 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
     st.divider()
     if st.button("💾 儲存並套用設定", type="primary"):
         save_global_config(active_config)
-        # 【強制快取同步】告知系統在下一次渲染時必須重新讀取設定檔
+        # 強制更新快取標記
         st.session_state.force_reload_config = True
         st.success("設定檔已成功更新！系統已同步最新參數。")
         st.rerun()
@@ -639,11 +643,11 @@ else:
         with st.popover("⚙️ 當前參數 (除錯專用)"):
             st.json(active_config)
             
-            # 【深度偵錯面板】顯示 AI 偵測器的真實載入狀態
+            # 【深度除錯面板】顯示真正的記憶體狀態
             st.divider()
             st.markdown("**🐞 系統內部狀態**")
-            st.text(f"目前的 AI 偵測模式: {active_config.get('ai_detector', {}).get('mode', '未知')}")
-            st.text(f"目前的 LLM 推論模式: {active_config.get('llm_mode', '未知')}")
+            st.text(f"AI 偵測器模式: {active_config.get('ai_detector', {}).get('mode', '未知')}")
+            st.text(f"LLM 推論模式: {active_config.get('llm_mode', '未知')}")
 
     # 資源監控與狀態列
     c1, c2 = st.columns([0.3, 0.7])
@@ -819,7 +823,9 @@ else:
     # ==========================================
     st.header("🔍 2. AI 寫作偵測")
     
-    # HF 下載提示
+    # 讀取當前的偵測模式
+    current_det_mode = active_config.get("ai_detector", {}).get("mode", "hf_model")
+    
     if current_det_mode == "hf_model" and is_admin:
         st.caption("💡 提示：Hugging Face 模式初次執行時，會從網路下載神經網路模型至伺服器。如果您的 Linux 網路受阻或連線逾時，系統會自動啟動保護機制，降級為本地模擬模式。")
     
@@ -849,6 +855,18 @@ else:
     if st.session_state.ai_report:
         report = st.session_state.ai_report
         
+        # 【深度除錯：如果被降級到模擬模式，顯示具體原因】
+        if "模擬" in report.get('model_name', ''):
+            st.error(
+                "🚨 **系統已觸發底層安全降級機制 (Fail-safe)** 🚨\n\n"
+                "系統無法啟動您指定的 AI 偵測引擎，為避免程式崩潰，已自動連鎖降級為模擬模式。\n\n"
+                "**🔍 常見除錯方向 (Linux 環境)：**\n"
+                "1. **Hugging Face 失敗**：伺服器可能無法連上 Hugging Face，或 `~/.cache/huggingface` 目錄無權限寫入。\n"
+                "2. **本地模型 (GGUF) 失敗**：伺服器實體記憶體 (RAM) 不足，或 Linux 未安裝 `gcc`/`g++` 導致 `llama-cpp` 無法啟動。\n"
+                "3. **雲端 API 失敗**：未填寫有效的 GPTZero API Key。\n\n"
+                "👉 **建議**：請查看伺服器終端機 (Terminal) 的詳細報錯日誌以鎖定具體原因。"
+            )
+            
         if "notice" in report:
             st.warning(f"⚠️ 注意：{report['notice']}")
             
