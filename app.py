@@ -28,7 +28,6 @@ try:
 except (ImportError, Exception):
     TK_AVAILABLE = False
 
-
 # -----------------------------------------------------------
 # 處理 llama-cpp (檢查本地模型套件是否已安裝)
 # -----------------------------------------------------------
@@ -37,7 +36,6 @@ try:
     HAS_LLAMA_CPP = True
 except ImportError:
     HAS_LLAMA_CPP = False
-
 
 # -----------------------------------------------------------
 # 匯入自定義模組
@@ -200,6 +198,12 @@ def save_global_config(config):
 # 核心狀態初始化 (Session State) - 多租戶隔離關鍵
 # ===========================================================
 
+# 【修復快取未同步問題】如果使用者點擊了儲存，我們必須確保舊的快取被清除
+if "force_reload_config" in st.session_state and st.session_state.force_reload_config:
+    st.session_state.global_config_cache = load_global_config()
+    st.session_state.user_config = copy.deepcopy(st.session_state.global_config_cache)
+    st.session_state.force_reload_config = False
+
 # 1. 讀取並暫存伺服器全域設定 (最高權限)
 if "global_config_cache" not in st.session_state:
     st.session_state.global_config_cache = load_global_config()
@@ -280,7 +284,7 @@ with st.sidebar:
                 requests.get(f"{ollama_base_url}/api/tags", timeout=1)
                 st.success("✅ Ollama 伺服器連線正常，可開始推論！")
             except requests.exceptions.RequestException:
-                st.error("⚠️ 伺服器端的 Ollama 服務似乎未啟動。請通知系統管理員。")
+                st.error("⚠️ 伺服器端的 Ollama 服務似乎未啟動。請通知管理員。")
                 
         else:
             st.caption("輸入您的 API Key")
@@ -321,6 +325,7 @@ with st.sidebar:
         
         if pwd == "admin":
             is_admin = True
+            # 管理員模式直接讀取全域快取
             active_config = st.session_state.global_config_cache
             active_config_path = config_path
             st.success("身分驗證成功！擁有伺服器完整存取權。")
@@ -330,6 +335,7 @@ with st.sidebar:
                 
                 llm_modes = {
                     "cloud": "☁️ 雲端 API (含 Gemini/OpenAI)",
+                    "gemini_native": "✨ Google Gemini 原生 SDK",
                     "local": "💻 本地落地模型 (llama-cpp)",
                     "ollama": "🐑 Ollama API (推薦)",
                     "mock": "🛠️ 模擬測試模式"
@@ -439,8 +445,6 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
         )
         
         active_config["cloud"]["provider"] = "gemini" if selected_provider_type == "Gemini" else "openai"
-        # 確保儲存時 LLM_MODE 統一為 cloud
-        active_config["llm_mode"] = "cloud"
 
         if selected_provider_type == "OpenAI-Compatible":
             openai_providers = {
@@ -617,9 +621,9 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
     st.divider()
     if st.button("💾 儲存並套用設定", type="primary"):
         save_global_config(active_config)
-        # 強制更新快取，確保即時生效
-        st.session_state.global_config_cache = copy.deepcopy(active_config)
-        st.success("設定檔已成功更新！")
+        # 【強制快取同步】告知系統在下一次渲染時必須重新讀取設定檔
+        st.session_state.force_reload_config = True
+        st.success("設定檔已成功更新！系統已同步最新參數。")
         st.rerun()
 
 
@@ -632,8 +636,14 @@ else:
     with col_t1:
         st.title("🎓 多代理人 AI 論文審查系統")
     with col_t2:
-        with st.popover("⚙️ 當前參數"):
+        with st.popover("⚙️ 當前參數 (除錯專用)"):
             st.json(active_config)
+            
+            # 【深度偵錯面板】顯示 AI 偵測器的真實載入狀態
+            st.divider()
+            st.markdown("**🐞 系統內部狀態**")
+            st.text(f"目前的 AI 偵測模式: {active_config.get('ai_detector', {}).get('mode', '未知')}")
+            st.text(f"目前的 LLM 推論模式: {active_config.get('llm_mode', '未知')}")
 
     # 資源監控與狀態列
     c1, c2 = st.columns([0.3, 0.7])
@@ -646,7 +656,9 @@ else:
                 llm_inf = LLMInterface(config_path=active_config_path)
                 
                 llm_mode = active_config.get("llm_mode", "mock")
-                if llm_mode == "cloud": 
+                if llm_mode == "gemini_native": 
+                    llm_hw_status = "☁️ Cloud API (Gemini Native)"
+                elif llm_mode == "cloud": 
                     provider = active_config.get("cloud", {}).get("provider", "openai")
                     llm_hw_status = "☁️ Cloud API (Gemini)" if provider == "gemini" else "☁️ Cloud API (OpenAI 相容)"
                 elif llm_mode == "ollama": 
@@ -669,12 +681,13 @@ else:
     current_det_mode = active_config.get("ai_detector", {}).get("mode", "hf_model")
     current_model_path = active_config.get("local", {}).get("model_path", "")
     
+    # 只要有任何一個功能依賴 local 模型，就必須檢查路徑
     if (current_llm_mode == "local" or current_det_mode == "local") and not check_model_exists(current_model_path):
         st.error(
-            f"🚨 **嚴重路徑錯誤**：系統偵測到您的本地 GGUF 模型路徑不存在！\n\n"
-            f"目前無效路徑為：`{current_model_path}`\n\n"
-            f"👉 **解決方案**：因為您已經將系統轉移至 Linux 伺服器，請至左側切換為「⚙️ 管理員 (參數設定)」，"
-            f"將路徑修改為 Linux 上的絕對路徑（例如：`/home/wangs/PaperReviewMultiSystem/local_models/...`）並儲存，否則本地推論將被強制降級為模擬模式。"
+            f"🚨 **嚴重路徑錯誤**：系統偵測到您的本地 GGUF 模型路徑無效或不存在！\n\n"
+            f"目前系統讀取到的路徑為：`{current_model_path}`\n\n"
+            f"👉 **解決方案**：請至左側切換為「⚙️ 管理員 (參數設定)」，"
+            f"將路徑修改為 Linux 伺服器上的絕對路徑（例如：`/home/wangs/PaperReviewMultiSystem/local_models/...`）並儲存，否則本地推論將被強制降級為模擬模式。"
         )
 
     # ==========================================
@@ -826,7 +839,7 @@ else:
         else:
             llm_service = LLMInterface(config_path=active_config_path)
             detector = AIDetector(config_path=active_config_path)
-            with st.spinner("AI 偵測分析中... (初次運行模型需要較長下載時間，請耐心等候)"):
+            with st.spinner("AI 偵測分析中 (若是初次運行 Hugging Face 模型，可能需要較長下載時間，請耐心等候)..."):
                  # 傳遞正在使用的 LLM 介面給偵測器
                  report = detector.analyze(final_paper_content_for_llm, llm_interface=llm_service)
                  st.session_state.ai_report = report
