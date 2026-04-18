@@ -1,4 +1,4 @@
-# app.py (v6.7 UI完美還原 + AI偵測器加強版)
+# app.py
 
 import streamlit as st
 import asyncio
@@ -17,7 +17,6 @@ from io import BytesIO
 # 文字解析套件
 import pypdf
 import docx
-
 
 # -----------------------------------------------------------
 # 處理 Tkinter (雲端環境不支援時的防呆機制)
@@ -64,8 +63,8 @@ def select_file(current_path=""):
         root.attributes("-topmost", True)
         initial_dir = os.path.dirname(current_path) if current_path and os.path.exists(os.path.dirname(current_path)) else os.getcwd()
         file_path = filedialog.askopenfilename(
-            initialdir=initial_dir, 
-            title="選擇 GGUF 模型檔案", 
+            initialdir=initial_dir,
+            title="選擇 GGUF 模型檔案",
             filetypes=[("GGUF files", "*.gguf"), ("All files", "*.*")]
         )
         root.destroy()
@@ -91,7 +90,7 @@ def extract_text_from_file(uploaded_file):
     try:
         if file_extension == "txt":
             return uploaded_file.getvalue().decode("utf-8")
-            
+        
         elif file_extension == "pdf":
             pdf_reader = pypdf.PdfReader(BytesIO(uploaded_file.read()))
             text = ""
@@ -100,16 +99,17 @@ def extract_text_from_file(uploaded_file):
                 if content:
                     text += content + "\n"
             return text
-            
+        
         elif file_extension == "docx":
             try:
                 doc = docx.Document(BytesIO(uploaded_file.read()))
                 return "\n".join([para.text for para in doc.paragraphs])
             except Exception as e:
+                # 專門處理 docx 結構錯誤
                 if "no relationship of type" in str(e):
                     raise ValueError("該 Word 檔案結構不完整。請嘗試在 Word 中「另存新檔」為標準 .docx 格式後再次上傳。")
                 raise e
-                
+        
     except Exception as e:
         raise Exception(f"解析 {file_extension.upper()} 失敗：{str(e)}")
     
@@ -134,16 +134,16 @@ def get_temp_user_config_path(user_conf):
 
 st.set_page_config(page_title="多代理人論文審查系統", page_icon="🎓", layout="wide")
 
+# 配置文件路徑處理 (確保打包後設定可持久化)
 config_name = "config.json"
 if getattr(sys, 'frozen', False):
-    # 打包環境下放在執行檔同層目錄
+    # 如果是打包後的執行檔，將設定檔放在 exe 旁邊
     base_dir = os.path.dirname(sys.executable)
     config_path = os.path.join(base_dir, config_name)
 else:
-    # 開發環境
+    # 開發模式下使用當前目錄
     config_path = os.path.abspath(config_name)
 
-# 如果設定檔不存在，初始化預設值
 if not os.path.exists(config_path):
     default_config = {
         "llm_mode": "mock",
@@ -152,10 +152,6 @@ if not os.path.exists(config_path):
             "api_key": "", 
             "model_name": "gpt-4o", 
             "api_url": "https://api.openai.com/v1/chat/completions"
-        },
-        "gemini_native": {
-            "api_key": "", 
-            "model_name": "gemini-1.5-flash"
         },
         "local": {
             "model_path": "./local_models/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf", 
@@ -170,7 +166,7 @@ if not os.path.exists(config_path):
         "ai_detector": {
             "api_key": "", 
             "api_url": "https://api.gptzero.me/v2/predict/text", 
-            "mode": "Hugging Face 神經網路 (推薦)",
+            "mode": "hf_model",
             "force_cpu": False
         }
     }
@@ -276,24 +272,22 @@ with st.sidebar:
             st.caption("輸入您的 API Key")
             user_key = st.text_input("輸入您的 API Key", type="password", label_visibility="collapsed")
             
+            # 【修復】統一使用 cloud 模式，interface.py 才看得懂
+            st.session_state.user_config["llm_mode"] = "cloud"
+            st.session_state.user_config.setdefault("cloud", {})
+            st.session_state.user_config["cloud"]["api_key"] = user_key
+            
             if user_provider == "Gemini (推薦)":
-                # 精準指向 cloud 模式，確保 interface.py 能夠辨識
-                st.session_state.user_config["llm_mode"] = "cloud"
-                st.session_state.user_config.setdefault("cloud", {})
-                st.session_state.user_config["cloud"]["api_key"] = user_key
                 st.session_state.user_config["cloud"]["provider"] = "gemini"
                 
                 st.caption("選擇 Gemini 模型")
                 user_model = st.selectbox(
                     "選擇 Gemini 模型", 
-                    ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp", "gemini-2.5-flash"],
+                    ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp"],
                     label_visibility="collapsed"
                 )
                 st.session_state.user_config["cloud"]["model_name"] = user_model
             else:
-                st.session_state.user_config["llm_mode"] = "cloud"
-                st.session_state.user_config.setdefault("cloud", {})
-                st.session_state.user_config["cloud"]["api_key"] = user_key
                 st.session_state.user_config["cloud"]["provider"] = "openai"
                 
                 st.caption("輸入 OpenAI 模型名稱")
@@ -397,7 +391,7 @@ with st.sidebar:
 
 
 # ===========================================================
-# 分頁 1：管理員系統參數設定 (原汁原味完整保留)
+# 分頁 1：管理員系統參數設定
 # ===========================================================
 
 if entry_mode == "⚙️ 管理員 (參數設定)":
@@ -504,21 +498,34 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
         st.subheader("🔍 AI Detector 設定")
         
         detector_modes = ["Hugging Face 神經網路 (推薦)", "GPTZero API (雲端)", "本地落地模型 (Local LLM)"]
-        current_det_mode = active_config["ai_detector"].get("mode", "Hugging Face 神經網路 (推薦)")
-        det_index = detector_modes.index(current_det_mode) if current_det_mode in detector_modes else 0
+        # 讀取時將內部代碼轉換為 UI 顯示 index
+        current_det_mode = active_config["ai_detector"].get("mode", "hf_model")
+        if current_det_mode == "hf_model":
+            det_index = 0
+        elif current_det_mode == "cloud":
+            det_index = 1
+        else:
+            det_index = 2
         
         st.caption("偵測模式")
         selected_det_mode = st.radio("偵測模式", detector_modes, index=det_index, label_visibility="collapsed")
-        active_config["ai_detector"]["mode"] = selected_det_mode
+        
+        # 【關鍵修復：儲存時必須將 UI 文字轉換回系統看得懂的代碼】
+        if "Hugging Face" in selected_det_mode:
+            active_config["ai_detector"]["mode"] = "hf_model"
+        elif "GPTZero" in selected_det_mode:
+            active_config["ai_detector"]["mode"] = "cloud"
+        else:
+            active_config["ai_detector"]["mode"] = "local"
 
-        if selected_det_mode == "Hugging Face 神經網路 (推薦)":
+        if active_config["ai_detector"]["mode"] == "hf_model":
             st.info("Hugging Face 模式將不需聯網，直接使用 Desklib 神經網路模型處理 (效能與精準度最佳)。")
             active_config["ai_detector"]["force_cpu"] = st.checkbox(
                 "強制使用 CPU 進行 AI 偵測", 
                 value=active_config["ai_detector"].get("force_cpu", False)
             )
             
-        elif selected_det_mode == "GPTZero API (雲端)":
+        elif active_config["ai_detector"]["mode"] == "cloud":
             detector_api_show = st.checkbox("顯示 GPTZero Key", key="show_detector_api")
             active_config["ai_detector"]["api_key"] = st.text_input(
                 "GPTZero API Key", 
@@ -530,7 +537,7 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
                 value=active_config["ai_detector"].get("api_url", "https://api.gptzero.me/v2/predict/text")
             )
             
-        elif selected_det_mode == "本地落地模型 (Local LLM)":
+        elif active_config["ai_detector"]["mode"] == "local":
             st.info("本地模式將優先使用右方「💻 本地 LLM 設定」中載入的模型。注意：大模型極度消耗運算資源，且請確保上下文窗口 (n_ctx) 足夠容納全文。")
 
     with col_b:
@@ -672,7 +679,7 @@ else:
 
 
     # ==========================================
-    # 1.5 內容預處理與範圍界定 (完美還原三色儀表板)
+    # 1.5 內容預處理與範圍界定
     # ==========================================
     st.header("✂️ 1.5 內容預處理與清洗")
     
@@ -733,7 +740,7 @@ else:
     excluded_words = total_words - compared_words
 
     with col_set2:
-        # 完全還原三色儀表板排版 (image_82d788.png)
+        # 100% 完美還原的三色儀表板排版
         st.markdown(f"""
         <div style="border:1px solid #e0e0e0; border-radius:10px; padding:15px; text-align:center; margin-bottom:12px; background-color:#ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
             <div style="color:#5f6368; font-size:16px; font-weight:500;">📄 文件原始總字數</div>
@@ -781,7 +788,7 @@ else:
         else:
             llm_service = LLMInterface(config_path=active_config_path)
             detector = AIDetector(config_path=active_config_path)
-            with st.spinner("AI 偵測分析中 (初次運行可能需要較長下載時間)..."):
+            with st.spinner("AI 偵測分析中 (若是初次運行 Hugging Face 模型，可能需要較長下載時間)..."):
                  # 傳遞正在使用的 LLM 介面給偵測器
                  report = detector.analyze(final_paper_content_for_llm, llm_interface=llm_service)
                  st.session_state.ai_report = report
@@ -822,7 +829,7 @@ else:
         else:
             st.caption("✅ 未偵測到明顯 AI 生成嫌疑句。")
 
-        # 詳細數據表格呈現
+        # 詳細數據表格呈現 (已修復終端機 use_container_width 警告)
         with st.expander("📊 查看詳細偵測數據表格", expanded=False):
             import pandas as pd
             df_data = []
@@ -834,7 +841,7 @@ else:
                     "判定理由": seg.get('reason', '-')
                })
             if df_data:
-                st.dataframe(pd.DataFrame(df_data), use_container_width=True)
+                st.dataframe(pd.DataFrame(df_data), width="stretch")
 
         st.divider()
 
