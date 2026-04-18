@@ -77,7 +77,19 @@ class AIDetector:
         except Exception:
             self.config = {}
 
-        self.mode = self.config.get("ai_detector", {}).get("mode", "Hugging Face 神經網路 (推薦)")
+        # 取得設定檔中的 mode (預設為 hf_model)
+        raw_mode = self.config.get("ai_detector", {}).get("mode", "hf_model")
+        
+        # 建立相容性映射：確保舊版中文與新版系統代碼都能被正確解析
+        if "Hugging Face" in raw_mode or raw_mode == "hf_model":
+            self.mode = "hf_model"
+        elif "GPTZero" in raw_mode or raw_mode == "cloud":
+            self.mode = "cloud"
+        elif "本地" in raw_mode or "Local" in raw_mode or raw_mode == "local":
+            self.mode = "local"
+        else:
+            self.mode = "hf_model" # 最終防呆預設值
+
         self.api_key = self.config.get("ai_detector", {}).get("api_key", "")
         self.api_url = self.config.get("ai_detector", {}).get("api_url", "https://api.gptzero.me/v2/predict/text")
         
@@ -85,7 +97,7 @@ class AIDetector:
         self.tokenizer = None
         self.device = None
         
-        if self.mode == "Hugging Face 神經網路 (推薦)":
+        if self.mode == "hf_model":
             self._init_hf_model()
 
     def _init_hf_model(self):
@@ -116,14 +128,14 @@ class AIDetector:
     @property
     def hardware_info(self) -> str:
         """ 返回目前使用的推論硬體 """
-        if self.mode == "GPTZero API (雲端)":
+        if self.mode == "cloud":
             return "☁️ Cloud API (GPTZero)"
-        if self.mode == "Hugging Face 神經網路 (推薦)":
+        if self.mode == "hf_model":
             if self.device and self.device.type == 'cuda':
                 return "💻 Local GPU (CUDA) - Desklib"
             else:
                 return "💻 Local CPU - Desklib"
-        if self.mode == "本地落地模型 (Local LLM)":
+        if self.mode == "local":
             return "💻 Local LLM Shared"
         return "🛠️ Mock Engine"
 
@@ -132,9 +144,10 @@ class AIDetector:
         if not text.strip():
             return {"ai_ratio": 0.0, "segments": [], "summary": "無有效輸入文本。", "model_name": "N/A"}
         
-        if self.mode == "Hugging Face 神經網路 (推薦)":
+        # 使用精確的系統代碼進行判斷
+        if self.mode == "hf_model":
             return self._hf_analyze(text)
-        elif self.mode == "本地落地模型 (Local LLM)" and llm_interface:
+        elif self.mode == "local" and llm_interface:
             return self._local_analyze(text, llm_interface)
         else:
             return self._cloud_analyze(text)
