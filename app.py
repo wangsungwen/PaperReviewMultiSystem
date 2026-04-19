@@ -1,4 +1,4 @@
-# app.py (v6.8 AI 偵測模式精準綁定與狀態修復版)
+# app.py
 
 import streamlit as st
 import asyncio
@@ -161,10 +161,6 @@ if not os.path.exists(config_path):
             "model_name": "gpt-4o", 
             "api_url": "https://api.openai.com/v1/chat/completions"
         },
-        "gemini_native": {
-            "api_key": "", 
-            "model_name": "gemini-1.5-flash"
-        },
         "local": {
             "model_path": "./local_models/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf", 
             "n_ctx": 4096, 
@@ -291,22 +287,24 @@ with st.sidebar:
             user_key = st.text_input("輸入您的 API Key", type="password", label_visibility="collapsed")
             
             if user_provider == "Gemini (推薦)":
-                st.session_state.user_config["llm_mode"] = "gemini_native"
-                st.session_state.user_config.setdefault("gemini_native", {})
-                st.session_state.user_config["gemini_native"]["api_key"] = user_key
+                # 【關鍵修復】: 線上使用者選擇 Gemini 時，必須寫入 'cloud' 模式與 'gemini' provider
+                st.session_state.user_config["llm_mode"] = "cloud"
+                st.session_state.user_config.setdefault("cloud", {})
+                st.session_state.user_config["cloud"]["provider"] = "gemini"
+                st.session_state.user_config["cloud"]["api_key"] = user_key
                 
                 st.caption("選擇 Gemini 模型")
                 user_model = st.selectbox(
                     "選擇 Gemini 模型", 
-                    ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp"],
+                    ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp", "gemini-2.5-flash"],
                     label_visibility="collapsed"
                 )
-                st.session_state.user_config["gemini_native"]["model_name"] = user_model
+                st.session_state.user_config["cloud"]["model_name"] = user_model
             else:
                 st.session_state.user_config["llm_mode"] = "cloud"
                 st.session_state.user_config.setdefault("cloud", {})
-                st.session_state.user_config["cloud"]["api_key"] = user_key
                 st.session_state.user_config["cloud"]["provider"] = "openai"
+                st.session_state.user_config["cloud"]["api_key"] = user_key
                 
                 st.caption("輸入 OpenAI 模型名稱")
                 user_model = st.text_input("輸入 OpenAI 模型名稱", value="gpt-4o", label_visibility="collapsed")
@@ -335,7 +333,6 @@ with st.sidebar:
                 
                 llm_modes = {
                     "cloud": "☁️ 雲端 API (含 Gemini/OpenAI)",
-                    "gemini_native": "✨ Google Gemini 原生 SDK",
                     "local": "💻 本地落地模型 (llama-cpp)",
                     "ollama": "🐑 Ollama API (推薦)",
                     "mock": "🛠️ 模擬測試模式"
@@ -445,6 +442,7 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
         )
         
         active_config["cloud"]["provider"] = "gemini" if selected_provider_type == "Gemini" else "openai"
+        active_config["llm_mode"] = "cloud"
 
         if selected_provider_type == "OpenAI-Compatible":
             openai_providers = {
@@ -517,14 +515,12 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
         
         st.subheader("🔍 AI Detector 設定")
         
-        # 【終極修復：精準字典綁定】徹底解決 radio button 卡死在 local 的問題
         detector_options = {
             "Hugging Face 神經網路 (推薦)": "hf_model",
             "GPTZero API (雲端)": "cloud",
             "本地落地模型 (Local LLM)": "local"
         }
         
-        # 反向找出目前的 index
         current_det_mode = active_config["ai_detector"].get("mode", "hf_model")
         det_index = 0
         for i, (ui_text, sys_code) in enumerate(detector_options.items()):
@@ -540,10 +536,8 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
             label_visibility="collapsed"
         )
         
-        # 將 UI 文字轉換回系統看得懂的內部代碼
         active_config["ai_detector"]["mode"] = detector_options[selected_det_ui]
 
-        # 依照選擇顯示對應的設定項目
         if active_config["ai_detector"]["mode"] == "hf_model":
             st.info("Hugging Face 模式將不需聯網，直接使用 Desklib 神經網路模型處理 (效能與精準度最佳)。")
             active_config["ai_detector"]["force_cpu"] = st.checkbox(
@@ -610,7 +604,6 @@ if entry_mode == "⚙️ 管理員 (參數設定)":
         use_gpu = st.checkbox("啟用 GPU 顯示卡加速 (若閃退請關閉)", value=(current_gpu_setting != 0))
         active_config["local"]["n_gpu_layers"] = -1 if use_gpu else 0
 
-        # 將 Ollama 設定安插在右下角
         st.divider()
         st.subheader("🦙 Ollama 伺服器設定")
         active_config["ollama"]["model_name"] = st.text_input(
@@ -643,7 +636,6 @@ else:
         with st.popover("⚙️ 當前參數 (除錯專用)"):
             st.json(active_config)
             
-            # 【深度除錯面板】顯示真正的記憶體狀態
             st.divider()
             st.markdown("**🐞 系統內部狀態**")
             st.text(f"AI 偵測器模式: {active_config.get('ai_detector', {}).get('mode', '未知')}")
@@ -685,7 +677,6 @@ else:
     current_det_mode = active_config.get("ai_detector", {}).get("mode", "hf_model")
     current_model_path = active_config.get("local", {}).get("model_path", "")
     
-    # 只要有任何一個功能依賴 local 模型，就必須檢查路徑
     if (current_llm_mode == "local" or current_det_mode == "local") and not check_model_exists(current_model_path):
         st.error(
             f"🚨 **嚴重路徑錯誤**：系統偵測到您的本地 GGUF 模型路徑無效或不存在！\n\n"
@@ -707,7 +698,6 @@ else:
 
     paper_content = ""
     
-    # 支援格式：txt, pdf, docx
     uploaded_file = st.file_uploader("上傳論文檔案 (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"])
     
     if uploaded_file is not None:
@@ -721,7 +711,6 @@ else:
             except Exception as e:
                 st.error(f"解析失敗：{e}")
         
-        # 當上傳新檔案時，清除舊的 AI 偵測結果
         if "last_uploaded_file" not in st.session_state or st.session_state.last_uploaded_file != uploaded_file.name:
             st.session_state.ai_report = None
             st.session_state.last_uploaded_file = uploaded_file.name
@@ -823,7 +812,6 @@ else:
     # ==========================================
     st.header("🔍 2. AI 寫作偵測")
     
-    # 讀取當前的偵測模式
     current_det_mode = active_config.get("ai_detector", {}).get("mode", "hf_model")
     
     if current_det_mode == "hf_model" and is_admin:
@@ -846,16 +834,13 @@ else:
             llm_service = LLMInterface(config_path=active_config_path)
             detector = AIDetector(config_path=active_config_path)
             with st.spinner("AI 偵測分析中 (若是初次運行 Hugging Face 模型，可能需要較長下載時間，請耐心等候)..."):
-                 # 傳遞正在使用的 LLM 介面給偵測器
                  report = detector.analyze(final_paper_content_for_llm, llm_interface=llm_service)
                  st.session_state.ai_report = report
                  st.success("分析完成！")
 
-    # 顯示分析結果
     if st.session_state.ai_report:
         report = st.session_state.ai_report
         
-        # 【深度除錯：如果被降級到模擬模式，顯示具體原因】
         if "模擬" in report.get('model_name', ''):
             st.error(
                 "🚨 **系統已觸發底層安全降級機制 (Fail-safe)** 🚨\n\n"
@@ -870,15 +855,12 @@ else:
         if "notice" in report:
             st.warning(f"⚠️ 注意：{report['notice']}")
             
-        # 顯示推論模型名稱
         st.success(f"🤖 **推論模型：** {report.get('model_name', '未知模型')}")
-        
         st.subheader(f"📊 偵測報告 (AI 比例：{report['ai_ratio']}%)")
         
         if report.get("summary"):
             st.info(f"📝 **分析摘要：** {report['summary']}")
 
-        # 渲染顏色標示 (包含 Tooltip 提示)
         highlighted_html = "<div style='line-height:1.8; border:1px solid #ddd; padding:20px; border-radius:10px; background-color:#fafafa; color:#333; font-size:16px;'>"
         
         found_ai = False
@@ -898,7 +880,6 @@ else:
         else:
             st.caption("✅ 未偵測到明顯 AI 生成嫌疑句。")
 
-        # 詳細數據表格呈現
         with st.expander("📊 查看詳細偵測數據表格", expanded=False):
             import pandas as pd
             df_data = []
