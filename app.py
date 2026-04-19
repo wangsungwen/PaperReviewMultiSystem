@@ -161,6 +161,10 @@ if not os.path.exists(config_path):
             "model_name": "gpt-4o", 
             "api_url": "https://api.openai.com/v1/chat/completions"
         },
+        "gemini_native": {
+            "api_key": "", 
+            "model_name": "gemini-1.5-flash"
+        },
         "local": {
             "model_path": "./local_models/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf", 
             "n_ctx": 4096, 
@@ -287,12 +291,28 @@ with st.sidebar:
             user_key = st.text_input("輸入您的 API Key", type="password", label_visibility="collapsed")
             
             if user_provider == "Gemini (推薦)":
-                # 【關鍵修復】: 線上使用者選擇 Gemini 時，必須寫入 'cloud' 模式與 'gemini' provider
                 st.session_state.user_config["llm_mode"] = "cloud"
                 st.session_state.user_config.setdefault("cloud", {})
                 st.session_state.user_config["cloud"]["provider"] = "gemini"
                 st.session_state.user_config["cloud"]["api_key"] = user_key
                 
+                # ==========================================
+                # 【新增功能】線上使用者專屬：偵測可用模型清單
+                # ==========================================
+                if st.button("🔍 偵測可用模型", key="online_detect_models_btn"):
+                    if not user_key:
+                        st.error("請先填入您的 API Key！")
+                    else:
+                        with st.spinner("正在與 Google 伺服器驗證金鑰..."):
+                            llm_service = LLMInterface(config_path="config.json")
+                            available_models = llm_service.list_models(api_key=user_key)
+                            
+                            if "錯誤" in available_models or "失敗" in available_models:
+                                st.error(f"**金鑰無效或連線失敗：**\n\n{available_models}")
+                            else:
+                                st.success(f"**✅ 驗證成功！可用模型清單：**\n\n{available_models}")
+                # ==========================================
+
                 st.caption("選擇 Gemini 模型")
                 user_model = st.selectbox(
                     "選擇 Gemini 模型", 
@@ -333,6 +353,7 @@ with st.sidebar:
                 
                 llm_modes = {
                     "cloud": "☁️ 雲端 API (含 Gemini/OpenAI)",
+                    "gemini_native": "✨ Google Gemini 原生 SDK",
                     "local": "💻 本地落地模型 (llama-cpp)",
                     "ollama": "🐑 Ollama API (推薦)",
                     "mock": "🛠️ 模擬測試模式"
@@ -652,9 +673,7 @@ else:
                 llm_inf = LLMInterface(config_path=active_config_path)
                 
                 llm_mode = active_config.get("llm_mode", "mock")
-                if llm_mode == "gemini_native": 
-                    llm_hw_status = "☁️ Cloud API (Gemini Native)"
-                elif llm_mode == "cloud": 
+                if llm_mode == "cloud": 
                     provider = active_config.get("cloud", {}).get("provider", "openai")
                     llm_hw_status = "☁️ Cloud API (Gemini)" if provider == "gemini" else "☁️ Cloud API (OpenAI 相容)"
                 elif llm_mode == "ollama": 
