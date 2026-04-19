@@ -296,9 +296,6 @@ with st.sidebar:
                 st.session_state.user_config["cloud"]["provider"] = "gemini"
                 st.session_state.user_config["cloud"]["api_key"] = user_key
                 
-                # ==========================================
-                # 【新增功能】線上使用者專屬：偵測可用模型清單
-                # ==========================================
                 if st.button("🔍 偵測可用模型", key="online_detect_models_btn"):
                     if not user_key:
                         st.error("請先填入您的 API Key！")
@@ -311,15 +308,41 @@ with st.sidebar:
                                 st.error(f"**金鑰無效或連線失敗：**\n\n{available_models}")
                             else:
                                 st.success(f"**✅ 驗證成功！可用模型清單：**\n\n{available_models}")
-                # ==========================================
 
-                st.caption("選擇 Gemini 模型")
-                user_model = st.selectbox(
+                # ==========================================
+                # 【新增功能】可編輯的自訂 Gemini 模型選項
+                # ==========================================
+                st.caption("選擇或輸入 Gemini 模型")
+                gemini_presets = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp", "gemini-2.5-flash", "自訂 (Custom)"]
+                
+                # 讀取目前選擇的模型，若無則預設為 flash
+                current_model = st.session_state.user_config["cloud"].get("model_name", "gemini-1.5-flash")
+                
+                # 判斷 index，如果目前的模型不在預設清單中，就選中 "自訂 (Custom)"
+                preset_index = gemini_presets.index("自訂 (Custom)")
+                if current_model in gemini_presets:
+                    preset_index = gemini_presets.index(current_model)
+                
+                selected_preset = st.selectbox(
                     "選擇 Gemini 模型", 
-                    ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp", "gemini-2.5-flash"],
+                    gemini_presets,
+                    index=preset_index,
                     label_visibility="collapsed"
                 )
+                
+                # 如果使用者選了「自訂」，就展開文字輸入框讓他們自己打
+                if selected_preset == "自訂 (Custom)":
+                    user_model = st.text_input(
+                        "輸入自訂模型名稱", 
+                        value=current_model if current_model not in gemini_presets else "",
+                        placeholder="例如: gemini-1.5-pro-latest"
+                    )
+                else:
+                    user_model = selected_preset
+                    
                 st.session_state.user_config["cloud"]["model_name"] = user_model
+                # ==========================================
+                
             else:
                 st.session_state.user_config["llm_mode"] = "cloud"
                 st.session_state.user_config.setdefault("cloud", {})
